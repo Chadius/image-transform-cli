@@ -1,20 +1,46 @@
 package main
 
 import (
+	"bytes"
 	"flag"
-	"io"
+	"fmt"
+	"github.com/Chadius/creating-symmetry/creatingsymmetry"
+	"image"
+	"image/png"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
 
 func main() {
 	filenameArguments := extractFilenameArguments()
-	loadFormulaFile(filenameArguments.FormulaFilename)
-	// TODO Call creating-symmetry library
-	// TODO Get output stream
-	// TODO Put into image
+
+	inputImageDataByteStream := new(bytes.Buffer)
+	png.Encode(inputImageDataByteStream, openSourceImage(filenameArguments))
+
+	formulaDataByteStream, formulaErr := os.Open(filenameArguments.FormulaFilename)
+	if formulaErr != nil {
+		log.Fatal(formulaErr)
+	}
+
+	outputSettingsJSONByteStream := []byte(
+		fmt.Sprintf(
+			"{'output_width':%d,'output_height':%d}",
+			filenameArguments.OutputWidth,
+			filenameArguments.OutputHeight,
+		),
+	)
+	outputSettingsDataByteStream := bytes.NewReader(outputSettingsJSONByteStream)
+
+	var output bytes.Buffer
+
+	creatingsymmetry.ApplyFormulaToTransformImage(inputImageDataByteStream, formulaDataByteStream, outputSettingsDataByteStream, &output)
+
+	outputReader := bytes.NewReader(output.Bytes())
+	outputImage, _ := png.Decode(outputReader)
+	outputToFile(filenameArguments.OutputFilename, outputImage)
 }
 
 // FilenameArguments assume the user provides filenames to create a pattern.
@@ -58,6 +84,33 @@ func checkSourceArgument(sourceImageFilename string) {
 	}
 }
 
+func openSourceImage(filenameArguments *FilenameArguments) image.Image {
+	reader, err := os.Open(filenameArguments.SourceImageFilename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer reader.Close()
+
+	colorSourceImage, _, err := image.Decode(reader)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return colorSourceImage
+}
+
+func outputToFile(outputFilename string, outputImage image.Image) {
+	err := os.MkdirAll(filepath.Dir(outputFilename), 0777)
+	if err != nil {
+		panic(err)
+	}
+	outputImageFile, err := os.Create(outputFilename)
+	if err != nil {
+		panic(err)
+	}
+	defer outputImageFile.Close()
+	png.Encode(outputImageFile, outputImage)
+}
+
 func checkOutputArgument(outputFilename, outputDimensions string) (int, int) {
 	if outputFilename == "" {
 		log.Fatal("missing output filename")
@@ -74,13 +127,4 @@ func checkOutputArgument(outputFilename, outputDimensions string) (int, int) {
 	}
 
 	return outputWidth, outputHeight
-}
-
-func loadFormulaFile(filename string) io.Reader {
-	formulaFile, err := os.Open(filename)
-	if err != nil {
-		println(err.Error())
-		log.Fatal(err)
-	}
-	return formulaFile
 }
