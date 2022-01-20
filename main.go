@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"github.com/Chadius/creating-symmetry/creatingsymmetry"
+	creatingsymmetry "github.com/Chadius/creating-symmetry"
 	"image"
 	"image/png"
 	"log"
@@ -36,7 +36,11 @@ func main() {
 
 	var output bytes.Buffer
 
-	creatingsymmetry.ApplyFormulaToTransformImage(inputImageDataByteStream, formulaDataByteStream, outputSettingsDataByteStream, &output)
+	// TODO Put into Args
+	// TODO Build new client object
+	// TODO pass onto new client object and get the output
+	defaultTransformer := creatingsymmetry.FileTransformer{}
+	defaultTransformer.ApplyFormulaToTransformImage(inputImageDataByteStream, formulaDataByteStream, outputSettingsDataByteStream, &output)
 
 	outputReader := bytes.NewReader(output.Bytes())
 	outputImage, _ := png.Decode(outputReader)
