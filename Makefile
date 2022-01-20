@@ -10,3 +10,5 @@ FORMULA_FILENAME="data/formula.yml"
 
 run: ## Run the script with default arguments
 	go run main.go -f $(FORMULA_FILENAME) -in example/rainbow_stripe.png -out out/example_image.png
+test: ## Test all files
+	go test ./...

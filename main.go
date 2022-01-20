@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"github.com/Chadius/creating-symmetry/creatingsymmetry"
+	"github.com/cserrant/image-transform-cli/command"
 	"image"
 	"image/png"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -15,12 +16,11 @@ import (
 )
 
 func main() {
-	filenameArguments := extractFilenameArguments()
+	commandLineArguments := getCommandLineArguments()
 
-	inputImageDataByteStream := new(bytes.Buffer)
-	png.Encode(inputImageDataByteStream, openSourceImage(filenameArguments))
+	inputImageDataByteStream, _ := ioutil.ReadFile(commandLineArguments.SourceImageFilename)
 
-	formulaDataByteStream, formulaErr := os.Open(filenameArguments.FormulaFilename)
+	formulaDataByteStream, formulaErr := ioutil.ReadFile(commandLineArguments.FormulaFilename)
 	if formulaErr != nil {
 		log.Fatal(formulaErr)
 	}
@@ -28,32 +28,45 @@ func main() {
 	outputSettingsJSONByteStream := []byte(
 		fmt.Sprintf(
 			"{'output_width':%d,'output_height':%d}",
-			filenameArguments.OutputWidth,
-			filenameArguments.OutputHeight,
+			commandLineArguments.OutputWidth,
+			commandLineArguments.OutputHeight,
 		),
 	)
-	outputSettingsDataByteStream := bytes.NewReader(outputSettingsJSONByteStream)
 
 	var output bytes.Buffer
 
-	creatingsymmetry.ApplyFormulaToTransformImage(inputImageDataByteStream, formulaDataByteStream, outputSettingsDataByteStream, &output)
+	useServerURL := false
+	if commandLineArguments.ServerURL != "" {
+		useServerURL = true
+	}
+
+	commandProcessor := command.NewCommandProcessor(nil, nil)
+	commandProcessor.ProcessArgumentsToTransformImage(&command.TransformArguments{
+		InputImageData:     inputImageDataByteStream,
+		FormulaData:        formulaDataByteStream,
+		OutputSettingsData: outputSettingsJSONByteStream,
+		OutputImageData:    &output,
+		ServerURL:          commandLineArguments.ServerURL,
+		UseServerURL:       useServerURL,
+	})
 
 	outputReader := bytes.NewReader(output.Bytes())
 	outputImage, _ := png.Decode(outputReader)
-	outputToFile(filenameArguments.OutputFilename, outputImage)
+	outputToFile(commandLineArguments.OutputFilename, outputImage)
 }
 
-// FilenameArguments assume the user provides filenames to create a pattern.
-type FilenameArguments struct {
+// CommandLineArguments assume the user provides filenames to create a pattern.
+type CommandLineArguments struct {
 	FormulaFilename     string
 	OutputFilename      string
 	OutputHeight        int
 	OutputWidth         int
 	SourceImageFilename string
+	ServerURL           string
 }
 
-func extractFilenameArguments() *FilenameArguments {
-	var sourceImageFilename, outputFilename, outputDimensions string
+func getCommandLineArguments() *CommandLineArguments {
+	var sourceImageFilename, outputFilename, outputDimensions, serverURL string
 	formulaFilename := "data/oldformula.yml"
 	flag.StringVar(&formulaFilename, "f", "data/oldformula.yml", "See -oldformula")
 	flag.StringVar(&formulaFilename, "oldformula", "data/oldformula.yml", "The filename of the oldformula file. Defaults to data/oldformula.yml")
@@ -64,17 +77,22 @@ func extractFilenameArguments() *FilenameArguments {
 	flag.StringVar(&outputFilename, "out", "", "Output filename. Required.")
 	outputDimensions = "200x200"
 	flag.StringVar(&outputDimensions, "size", "200x200", "Output size in pixels, separated with an x. Default to 200x200.")
+
+	flag.StringVar(&serverURL, "url", "", "URL of the transform server. If blank, it assumes the transformer is installed on this machine.")
+	serverURL = ""
+
 	flag.Parse()
 
 	checkSourceArgument(sourceImageFilename)
 	outputWidth, outputHeight := checkOutputArgument(outputFilename, outputDimensions)
 
-	return &FilenameArguments{
+	return &CommandLineArguments{
 		FormulaFilename:     formulaFilename,
 		OutputFilename:      outputFilename,
 		OutputHeight:        outputHeight,
 		OutputWidth:         outputWidth,
 		SourceImageFilename: sourceImageFilename,
+		ServerURL:           serverURL,
 	}
 }
 
@@ -84,7 +102,7 @@ func checkSourceArgument(sourceImageFilename string) {
 	}
 }
 
-func openSourceImage(filenameArguments *FilenameArguments) image.Image {
+func openSourceImage(filenameArguments *CommandLineArguments) image.Image {
 	reader, err := os.Open(filenameArguments.SourceImageFilename)
 	if err != nil {
 		log.Fatal(err)
