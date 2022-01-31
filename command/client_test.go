@@ -2,6 +2,7 @@ package command_test
 
 import (
 	"bytes"
+	"errors"
 	creatingsymmetry "github.com/Chadius/creating-symmetry"
 	"github.com/chadius/image-transform-server/creatingsymmetryfakes"
 	"github.com/chadius/image-transform-server/rpc/transform/github.com/chadius/image_transform_server"
@@ -163,4 +164,39 @@ func (suite *InjectTransformerSuite) TestWhenLocalImageTransformerIsInjected_The
 		reflect.TypeOf(commandProcessor.GetLocalTransformer()),
 		reflect.TypeOf(injectedTransformer),
 	)
+}
+
+type LocalPackageErrorReportingSuite struct {
+	suite.Suite
+	fakeLocalImageTransformerClient *creatingsymmetryfakes.FakeTransformerStrategy
+}
+
+func TestLocalPackageErrorReportingSuite(t *testing.T) {
+	suite.Run(t, new(LocalPackageErrorReportingSuite))
+}
+
+func (suite *LocalPackageErrorReportingSuite) TestWhenLocalPackageReturnsError_ThenReturnError() {
+	// Setup
+	suite.fakeLocalImageTransformerClient = &creatingsymmetryfakes.FakeTransformerStrategy{}
+	suite.fakeLocalImageTransformerClient.ApplyFormulaToTransformImageStub = func(inputImageDataByteStream, formulaDataByteStream, outputSettingsDataByteStream io.Reader, output io.Writer) error {
+		return errors.New("irrelevant error")
+	}
+
+	var dummyOutputImageData bytes.Buffer
+
+	// Act
+	commandProcessor := command.NewCommandProcessor(nil, suite.fakeLocalImageTransformerClient)
+	err := commandProcessor.ProcessArgumentsToTransformImage(&command.TransformArguments{
+		InputImageData:     nil,
+		FormulaData:        nil,
+		OutputSettingsData: nil,
+		OutputImageData:    &dummyOutputImageData,
+		ServerURL:          "",
+		UseServerURL:       false,
+	})
+
+	// Require
+	require := require.New(suite.T())
+	require.Error(err, "No error was found")
+	require.Equal("irrelevant error", err.Error(), "error message does not match")
 }

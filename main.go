@@ -41,7 +41,7 @@ func main() {
 	}
 
 	commandProcessor := command.NewCommandProcessor(nil, nil)
-	commandProcessor.ProcessArgumentsToTransformImage(&command.TransformArguments{
+	processingErr := commandProcessor.ProcessArgumentsToTransformImage(&command.TransformArguments{
 		InputImageData:     inputImageDataByteStream,
 		FormulaData:        formulaDataByteStream,
 		OutputSettingsData: outputSettingsJSONByteStream,
@@ -49,6 +49,10 @@ func main() {
 		ServerURL:          commandLineArguments.ServerURL,
 		UseServerURL:       useServerURL,
 	})
+
+	if processingErr != nil {
+		log.Fatal(processingErr)
+	}
 
 	outputReader := bytes.NewReader(output.Bytes())
 	outputImage, _ := png.Decode(outputReader)
